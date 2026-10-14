@@ -52,10 +52,10 @@ const PAIRS = {
 };
 /* response buttons per block; first category = alveolar (s / z) */
 const BLOCKS = {
-  vl:{cats:["s","ch"], ex:{s:"sip",  ch:"chip"}, name:"Part A"},
-  vd:{cats:["z","j"],  ex:{z:"zoo",  j:"jar"},   name:"Part B"}
+  vl:{cats:["s","ch"], ex:{s:"bus",  ch:"much"}, name:"Part A"},
+  vd:{cats:["z","j"],  ex:{z:"buzz", j:"page"},   name:"Part B"}
 };
-const PRACTICE = {vl:["ni_word","ri_word","ri_word","ni_word"], vd:["wi_word","hu_word","hu_word","wi_word"]};
+const PRACTICE = ["ni_word","hu_word","ri_word","wi_word","wi_word","ri_word","hu_word","ni_word"];
 /* ============================================ */
 
 const AUDIO_B64 = {
@@ -77,9 +77,8 @@ const QS = new URLSearchParams(location.search);
 const SHOW_RESULTS = QS.has('results');
 const pid = 'GN-' + Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(36).toUpperCase().padStart(2,'0')).join('').slice(0,6);
 const alvLeft = Math.random() < 0.5;                       // side of s / z button, fixed for the whole session
-const blockOrder = Math.random() < 0.5 ? ['vl','vd'] : ['vd','vl'];
 const subject = {participant_id: pid, started_at: new Date().toISOString(), user_agent: navigator.userAgent, screen_w: screen.width, screen_h: screen.height,
-                 alv_left: alvLeft, block_order: blockOrder.join('>')};
+                 alv_left: alvLeft};
 let results = [], audioCache = {}, trialCounter = 0, totalTrials = 0;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -88,7 +87,7 @@ const aud = k => audioCache[k] || (audioCache[k] = Object.assign(new Audio('data
 function playAndWait(k){ return new Promise(res => { const a = aud(k); a.currentTime = 0; a.onended = () => res(performance.now()); a.onerror = () => res(performance.now()); a.play().catch(()=>res(performance.now())); }); }
 function render(html){ $app.innerHTML = html; }
 const catOrder = bk => { const c = BLOCKS[bk].cats; return alvLeft ? [c[0], c[1]] : [c[1], c[0]]; };   // [left, right]
-const btnHTML = (bk, dis) => catOrder(bk).map(c => `<button class="choice" data-c="${c}" ${dis?'disabled':''}>${c}<div class="ex">as in “${BLOCKS[bk].ex[c]}”</div></button>`).join('');
+const btnHTML = (bk, dis) => catOrder(bk).map(c => `<button class="choice" data-c="${c}" ${dis?'disabled':''}>${c}<div class="ex">as in “${BLOCKS[bk].ex[c]}” (end sound)</div></button>`).join('');
 
 /* ---------- screens ---------- */
 function screenWelcome(){
@@ -110,16 +109,16 @@ function screenWelcome(){
   };
 }
 
-function screenBlockIntro(bk, idx){
+function screenIntro(){
   return new Promise(res => {
-    const [l, r] = catOrder(bk), ex = BLOCKS[bk].ex;
     render(`
-      <h2>${BLOCKS[bk].name} (${idx+1} of 2)</h2>
-      <p>You will hear a word that ends in either <b>“${l}”</b> or <b>“${r}”</b> sound. Click the sound you heard at the <b>end</b> of the word (or press <b>F</b> = left, <b>J</b> = right).</p>
-      <p class="ko">단어가 <b>${l}</b> 또는 <b>${r}</b> 소리로 끝납니다. 들린 끝소리를 클릭하세요 (F=왼쪽, J=오른쪽).</p>
-      <div class="choices" style="margin:18px 0">${btnHTML(bk,true)}</div>
+      <h2>How it works</h2>
+      <p>You will hear a short word. Decide which <b>sound at the end of the word</b> you heard, and click it (or press <b>F</b> = left, <b>J</b> = right). The buttons change depending on the word:</p>
+      <p class="ko">단어를 듣고 <b>끝소리</b>가 무엇이었는지 클릭하세요 (F=왼쪽, J=오른쪽). 버튼은 단어에 따라 달라집니다.</p>
+      <div class="choices" style="margin:14px 0 6px">${btnHTML('vl',true)}</div>
+      <div class="choices" style="margin:6px 0 14px">${btnHTML('vd',true)}</div>
       <p class="note">Some words are real English words and some are not. Some sounds may be unclear — just choose what it sounded like. / 일부 소리는 모호할 수 있어요. 들린 대로 고르세요.</p>
-      <p>First, a few practice trials with feedback. / 먼저 피드백이 있는 연습 4번을 합니다.</p>
+      <p>First, 8 practice trials with feedback. / 먼저 피드백이 있는 연습 8번을 합니다.</p>
       <button class="btn" id="go">Start practice</button>`);
     document.getElementById('go').onclick = res;
   });
@@ -143,10 +142,10 @@ function askResponse(bk, file, progress, feedbackCat){
   });
 }
 
-async function runPractice(bk){
-  for(const f of PRACTICE[bk]){
+async function runPractice(){
+  for(const f of PRACTICE){
     const k = f.split('_')[0], want = PAIRS[k].wcat;
-    const r = await askResponse(bk, f, 0);
+    const r = await askResponse(PAIRS[k].block, f, 0);
     const ok = r.cat === want;
     render(`<div class="center"><div class="big" style="color:${ok?'#1a7f37':'#b42318'}">${ok?'✓':'✗'}</div><p>${ok?'Correct':'That word ended in “'+want+'”'}</p></div>`);
     await sleep(1100);
@@ -154,9 +153,9 @@ async function runPractice(bk){
 }
 
 /* ---------- trials ---------- */
-function buildBlockTrials(bk){
+function buildTrials(){
   const t = [];
-  for(const k of Object.keys(PAIRS).filter(k => PAIRS[k].block===bk))
+  for(const k of Object.keys(PAIRS))
     for(const [type, n] of Object.entries(REPS))
       for(let i=0;i<n;i++) t.push({pair:k, stim_type:type, audio_file:`${k}_${type}`});
   shuffle(t);
@@ -166,27 +165,27 @@ function buildBlockTrials(bk){
 
 async function runTask(){
   Object.keys(PAIRS).forEach(k => ['word','amb','non'].forEach(s => aud(`${k}_${s}`)));
-  totalTrials = Object.keys(PAIRS).length * (REPS.amb+REPS.word+REPS.non);
-  for(let bi=0; bi<2; bi++){
-    const bk = blockOrder[bi];
-    await screenBlockIntro(bk, bi);
-    await runPractice(bk);
-    render(`<div class="center"><h2>Now the real task</h2><p class="note">No more feedback. / 이제 본 과제입니다 (피드백 없음).</p><button class="btn" id="go">Start</button></div>`);
-    await new Promise(r => document.getElementById('go').onclick = r);
-    for(const t of buildBlockTrials(bk)){
-      const P = PAIRS[t.pair];
-      const r = await askResponse(bk, t.audio_file, 100*trialCounter/totalTrials);
-      trialCounter++;
-      const expected = t.stim_type==='word' ? P.wcat : t.stim_type==='non' ? P.ncat : '';
-      results.push({participant_id:pid, trial_index:trialCounter, block:bk, block_position:bi+1, pair:t.pair, stim_type:t.stim_type,
-        audio_file:t.audio_file+'.wav', word_option:P.word, nonword_option:P.non, word_cat:P.wcat, nonword_cat:P.ncat,
-        button_left:catOrder(bk)[0], button_right:catOrder(bk)[1], alv_left:alvLeft?1:0,
-        response_cat:r.cat, resp_alveolar: (r.cat==='s'||r.cat==='z')?1:0, chose_word: r.cat===P.wcat?1:0,
-        correct: expected ? (r.cat===expected?1:0) : '',
-        rt_from_onset:Math.round(r.tResp-r.t0), rt_from_end:Math.round(r.tResp-r.tEnd), created_at:new Date().toISOString()});
-      try{ localStorage.setItem('ganong_backup_'+pid, JSON.stringify({subject, results})); }catch(e){}
+  const trials = buildTrials(); totalTrials = trials.length;
+  await screenIntro();
+  await runPractice();
+  render(`<div class="center"><h2>Now the real task</h2><p class="note">No more feedback. / 이제 본 과제입니다 (피드백 없음).</p><button class="btn" id="go">Start</button></div>`);
+  await new Promise(r => document.getElementById('go').onclick = r);
+  for(const t of trials){
+    const P = PAIRS[t.pair], bk = P.block;
+    const r = await askResponse(bk, t.audio_file, 100*trialCounter/totalTrials);
+    trialCounter++;
+    const expected = t.stim_type==='word' ? P.wcat : t.stim_type==='non' ? P.ncat : '';
+    results.push({participant_id:pid, trial_index:trialCounter, block:bk, block_position:1, pair:t.pair, stim_type:t.stim_type,
+      audio_file:t.audio_file+'.wav', word_option:P.word, nonword_option:P.non, word_cat:P.wcat, nonword_cat:P.ncat,
+      button_left:catOrder(bk)[0], button_right:catOrder(bk)[1], alv_left:alvLeft?1:0,
+      response_cat:r.cat, resp_alveolar: (r.cat==='s'||r.cat==='z')?1:0, chose_word: r.cat===P.wcat?1:0,
+      correct: expected ? (r.cat===expected?1:0) : '',
+      rt_from_onset:Math.round(r.tResp-r.t0), rt_from_end:Math.round(r.tResp-r.tEnd), created_at:new Date().toISOString()});
+    try{ localStorage.setItem('ganong_backup_'+pid, JSON.stringify({subject, results})); }catch(e){}
+    if(trialCounter === Math.floor(totalTrials/2)){
+      render(`<div class="center"><h2>Short break</h2><p>Take a moment, then continue. / 잠깐 쉬었다가 계속하세요.</p><button class="btn" id="go">Continue</button></div>`);
+      await new Promise(r2 => document.getElementById('go').onclick = r2);
     }
-    if(bi===0){ render(`<div class="center"><h2>Short break</h2><p>Take a moment, then continue. / 잠깐 쉬었다가 계속하세요.</p><button class="btn" id="go">Continue</button></div>`); await new Promise(r => document.getElementById('go').onclick = r); }
   }
   await finish();
 }
