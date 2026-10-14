@@ -179,7 +179,7 @@ async function runTask(){
       audio_file:t.audio_file+'.wav', word_option:P.word, nonword_option:P.non, word_cat:P.wcat, nonword_cat:P.ncat,
       button_left:catOrder(bk)[0], button_right:catOrder(bk)[1], alv_left:alvLeft?1:0,
       response_cat:r.cat, resp_alveolar: (r.cat==='s'||r.cat==='z')?1:0, chose_word: r.cat===P.wcat?1:0,
-      correct: expected ? (r.cat===expected?1:0) : '',
+      correct: expected ? (r.cat===expected?1:0) : null,
       rt_from_onset:Math.round(r.tResp-r.t0), rt_from_end:Math.round(r.tResp-r.tEnd), created_at:new Date().toISOString()});
     try{ localStorage.setItem('ganong_backup_'+pid, JSON.stringify({subject, results})); }catch(e){}
     if(trialCounter === Math.floor(totalTrials/2)){
